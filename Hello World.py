@@ -190,23 +190,43 @@ with tab1:
                 remaining = max(0, tlimit - elapsed)
                 st.write(f"剩餘時間： {remaining} 秒")
 
-            # 顯示四欄卡片選項，每格為卡片並附一個選擇按鈕
-            cols = st.columns(4)
+            # 顯示 2x2 卡片選項，每格為卡片並附一個選擇按鈕
+            rows = [st.columns(2) for _ in range(2)]
             btn_clicked = None
             for i, opt in enumerate(cur['options']):
-                with cols[i]:
+                row = rows[i // 2]
+                col = row[i % 2]
+                with col:
                     # 卡片樣式（簡單 CSS）
                     st.markdown(
-                        f"<div style='border:1px solid #e6e6e6;padding:12px;border-radius:8px;text-align:center;background:#fafafa'>\n" 
-                        f"<div style='font-weight:700;font-size:16px;margin-bottom:6px'>{opt}</div>\n" 
+                        f"<div style='border:1px solid #e6e6e6;padding:12px;border-radius:8px;text-align:center;background:#fafafa'>\n"
+                        f"<div style='font-weight:700;font-size:16px;margin-bottom:6px'>{opt}</div>\n"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
                     if st.button("選擇", key=f"word_quiz_btn_{st.session_state.word_quiz_game['question_idx']}_{i}"):
                         btn_clicked = opt
 
+            # 自動檢查是否時間到（若到會自動判為答錯並結束遊戲）
+            if tlimit > 0:
+                elapsed = int(time.time() - cur.get('start_time', time.time()))
+                remaining = max(0, tlimit - elapsed)
+                if remaining <= 0 and st.session_state.word_quiz_game['active']:
+                    st.error("時間到！答錯了。遊戲結束。")
+                    final = st.session_state.word_quiz_game['score']
+                    if final > st.session_state.word_quiz_highscore:
+                        save_highscore(final)
+                        st.session_state.word_quiz_highscore = final
+                        st.balloons()
+                        st.success(f"新的最高紀錄：{final} 分！恭喜！")
+                    else:
+                        st.info(f"目前最高紀錄仍為：{st.session_state.word_quiz_highscore} 分。")
+                    st.session_state.word_quiz_game['active'] = False
+                    st.session_state.word_quiz_game['current'] = None
+                    st.experimental_rerun()
+
             if btn_clicked:
-                # 時間檢查
+                # 時間檢查（防禦性檢查）
                 if tlimit > 0 and (time.time() - cur.get('start_time', time.time())) > tlimit:
                     st.error("時間到！答錯了。遊戲結束。")
                     final = st.session_state.word_quiz_game['score']
