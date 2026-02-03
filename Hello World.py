@@ -3,6 +3,7 @@ import pandas as pd
 import random
 import os
 import json
+import time
 
 # 主標題
 st.title("Hello! 👋 梁育維的歡樂小天地")
