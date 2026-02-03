@@ -190,8 +190,22 @@ with tab1:
                 remaining = max(0, tlimit - elapsed)
                 st.write(f"剩餘時間： {remaining} 秒")
 
-            choice = st.radio("請選擇正確的英文字：", cur['options'], key=f"word_quiz_choice_{st.session_state.word_quiz_game['question_idx']}")
-            if st.button("提交答案 (提交) "):
+            # 顯示四欄卡片選項，每格為卡片並附一個選擇按鈕
+            cols = st.columns(4)
+            btn_clicked = None
+            for i, opt in enumerate(cur['options']):
+                with cols[i]:
+                    # 卡片樣式（簡單 CSS）
+                    st.markdown(
+                        f"<div style='border:1px solid #e6e6e6;padding:12px;border-radius:8px;text-align:center;background:#fafafa'>\n" 
+                        f"<div style='font-weight:700;font-size:16px;margin-bottom:6px'>{opt}</div>\n" 
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+                    if st.button("選擇", key=f"word_quiz_btn_{st.session_state.word_quiz_game['question_idx']}_{i}"):
+                        btn_clicked = opt
+
+            if btn_clicked:
                 # 時間檢查
                 if tlimit > 0 and (time.time() - cur.get('start_time', time.time())) > tlimit:
                     st.error("時間到！答錯了。遊戲結束。")
@@ -206,13 +220,13 @@ with tab1:
                     st.session_state.word_quiz_game['active'] = False
                     st.session_state.word_quiz_game['current'] = None
                 else:
-                    if choice == cur['answer']:
+                    if btn_clicked == cur['answer']:
                         pts = POINTS.get(difficulty, 1)
                         st.session_state.word_quiz_game['score'] += pts
                         st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
                         st.session_state.word_quiz_game['used'].add(cur['answer'])
                         st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
-                        # 清除 current 以產生新題，並遞增題號以重置 widget key
+                        # 清除 current 以產生新題，並遞增題號以重置 widgets
                         st.session_state.word_quiz_game['current'] = None
                         st.session_state.word_quiz_game['question_idx'] += 1
                     else:
