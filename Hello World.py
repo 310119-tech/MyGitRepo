@@ -161,23 +161,30 @@ with tab1:
         random.shuffle(options)
         return entry.get('definition', ''), options, word
 
+    # 幫助函式：產生下一題並設定狀態
+    def _advance_question(pool_entries):
+        definition, options, answer = _make_question_from_pool(pool_entries)
+        if definition is None:
+            st.success("恭喜！已回答完此難度的所有題目。遊戲結束。")
+            st.session_state.word_quiz_game['active'] = False
+            st.session_state.word_quiz_game['current'] = None
+        else:
+            st.session_state.word_quiz_game['current'] = {
+                'definition': definition,
+                'options': options,
+                'answer': answer,
+                'start_time': time.time()
+            }
+            # 增加題目索引以重置 widget keys
+            st.session_state.word_quiz_game['question_idx'] += 1
+
     # 主遊戲邏輯
     if st.session_state.word_quiz_game['active']:
         difficulty = st.session_state.word_quiz_game.get('difficulty', '簡單')
         pool_entries = POOLS.get(difficulty, [])
 
         if not st.session_state.word_quiz_game['current']:
-            definition, options, answer = _make_question_from_pool(pool_entries)
-            if definition is None:
-                st.success("恭喜！已回答完此難度的所有題目。遊戲結束。")
-                st.session_state.word_quiz_game['active'] = False
-            else:
-                st.session_state.word_quiz_game['current'] = {
-                    'definition': definition,
-                    'options': options,
-                    'answer': answer,
-                    'start_time': time.time()
-                }
+            _advance_question(pool_entries)
 
         if st.session_state.word_quiz_game['current']:
             cur = st.session_state.word_quiz_game['current']
@@ -239,10 +246,12 @@ with tab1:
                         st.session_state.word_quiz_game['score'] += pts
                         st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
                         st.session_state.word_quiz_game['used'].add(cur['answer'])
-                        # 準備下一題並立刻重跑以快速呈現下一題（不顯示長時間提示）
-                        st.session_state.word_quiz_game['current'] = None
-                        st.session_state.word_quiz_game['question_idx'] += 1
-                        st.experimental_rerun()
+                        # 準備下一題並立刻產生下一題（快速接上）
+                        _advance_question(pool_entries)
+                        # 立刻重新取得當前題目（已由 _advance_question 設定），並繼續執行以顯示下一題
+                        cur = st.session_state.word_quiz_game['current']
+                        # 顯示簡短成功提示（不阻礙流程）
+                        st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
                     else:
                         final = st.session_state.word_quiz_game['score']
                         st.error(f"答錯了！正確答案是：{cur['answer']}。遊戲結束，你的最終分數：{final} 分。")
