@@ -224,7 +224,6 @@ with tab1:
                         st.info(f"目前最高紀錄仍為：{st.session_state.word_quiz_highscore} 分。")
                     st.session_state.word_quiz_game['active'] = False
                     st.session_state.word_quiz_game['current'] = None
-                    st.experimental_rerun()
 
             if btn_clicked:
                 # 時間檢查（防禦性檢查）
@@ -246,10 +245,15 @@ with tab1:
                         st.session_state.word_quiz_game['score'] += pts
                         st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
                         st.session_state.word_quiz_game['used'].add(cur['answer'])
-                        # 準備下一題並立刻產生下一題（快速接上）
+                        # 準備下一題（立即生出新題）
                         _advance_question(pool_entries)
-                        # 立刻重新取得當前題目（已由 _advance_question 設定），並繼續執行以顯示下一題
-                        cur = st.session_state.word_quiz_game['current']
+                        # 嘗試強制重新執行（大多數環境支援）以立即呈現下一題
+                        try:
+                            if hasattr(st, 'experimental_set_query_params'):
+                                st.experimental_set_query_params(_next=int(time.time()))
+                        except Exception:
+                            # 如果無法使用 experimental_set_query_params，保留目前狀態（下一次 rerun 將呈現新題）
+                            pass
                         # 顯示簡短成功提示（不阻礙流程）
                         st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
                     else:
