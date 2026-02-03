@@ -190,21 +190,15 @@ with tab1:
                 remaining = max(0, tlimit - elapsed)
                 st.write(f"剩餘時間： {remaining} 秒")
 
-            # 顯示 2x2 卡片選項，每格為卡片並附一個選擇按鈕
+            # 顯示 2x2 按鈕（按鈕標籤即為答案文字）
             rows = [st.columns(2) for _ in range(2)]
             btn_clicked = None
             for i, opt in enumerate(cur['options']):
                 row = rows[i // 2]
                 col = row[i % 2]
                 with col:
-                    # 卡片樣式（簡單 CSS）
-                    st.markdown(
-                        f"<div style='border:1px solid #e6e6e6;padding:12px;border-radius:8px;text-align:center;background:#fafafa'>\n"
-                        f"<div style='font-weight:700;font-size:16px;margin-bottom:6px'>{opt}</div>\n"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                    if st.button("選擇", key=f"word_quiz_btn_{st.session_state.word_quiz_game['question_idx']}_{i}"):
+                    # 直接用按鈕顯示答案文字（更直觀）
+                    if st.button(opt, key=f"word_quiz_btn_{st.session_state.word_quiz_game['question_idx']}_{i}"):
                         btn_clicked = opt
 
             # 自動檢查是否時間到（若到會自動判為答錯並結束遊戲）
@@ -245,10 +239,10 @@ with tab1:
                         st.session_state.word_quiz_game['score'] += pts
                         st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
                         st.session_state.word_quiz_game['used'].add(cur['answer'])
-                        st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
-                        # 清除 current 以產生新題，並遞增題號以重置 widgets
+                        # 準備下一題並立刻重跑以快速呈現下一題（不顯示長時間提示）
                         st.session_state.word_quiz_game['current'] = None
                         st.session_state.word_quiz_game['question_idx'] += 1
+                        st.experimental_rerun()
                     else:
                         final = st.session_state.word_quiz_game['score']
                         st.error(f"答錯了！正確答案是：{cur['answer']}。遊戲結束，你的最終分數：{final} 分。")
