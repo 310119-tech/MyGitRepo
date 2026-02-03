@@ -92,6 +92,7 @@ if "word_quiz_game" not in st.session_state:
         "current": None,  # dict: {definition, options, answer, start_time}
         "history": [],
         "time_limit": 0,  # 秒, 0 表示無限時間
+        "question_idx": 0,  # 用來作為 radio widget 的唯一 key
     }
 
 # 側欄顯示記分板與最高分
@@ -126,6 +127,7 @@ with tab1:
             "current": None,
             "history": [],
             "difficulty": diff,
+            "question_idx": 0,
         })
         st.success("遊戲已開始，祝你幸運！")
 
@@ -188,7 +190,7 @@ with tab1:
                 remaining = max(0, tlimit - elapsed)
                 st.write(f"剩餘時間： {remaining} 秒")
 
-            choice = st.radio("請選擇正確的英文字：", cur['options'], key='word_quiz_choice')
+            choice = st.radio("請選擇正確的英文字：", cur['options'], key=f"word_quiz_choice_{st.session_state.word_quiz_game['question_idx']}")
             if st.button("提交答案 (提交) "):
                 # 時間檢查
                 if tlimit > 0 and (time.time() - cur.get('start_time', time.time())) > tlimit:
@@ -210,9 +212,9 @@ with tab1:
                         st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
                         st.session_state.word_quiz_game['used'].add(cur['answer'])
                         st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
-                        # 清除 current 以產生新題
+                        # 清除 current 以產生新題，並遞增題號以重置 widget key
                         st.session_state.word_quiz_game['current'] = None
-                        st.session_state['word_quiz_choice'] = None
+                        st.session_state.word_quiz_game['question_idx'] += 1
                     else:
                         final = st.session_state.word_quiz_game['score']
                         st.error(f"答錯了！正確答案是：{cur['answer']}。遊戲結束，你的最終分數：{final} 分。")
