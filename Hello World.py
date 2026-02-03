@@ -1,133 +1,243 @@
 import streamlit as st
 import pandas as pd
-import math
 import random
+import os
+import json
+
+# 主標題
+st.title("Hello! 👋 梁育維的歡樂小天地")
+st.subheader("✨ 今日特輯：簡單、好玩、充滿驚喜！")
+st.write("歡迎來到一個專門放小遊戲與小工具的角落，放輕鬆、來玩一局吧！")
+
+# 歡迎區
+st.header("📣 歡迎區 — 打招呼有儀式感")
+st.write("輸入你的名字或按個按鈕，說聲哈囉吧。")
+if st.button("點我打招呼"):
+    st.success("哈囉！希望你今天心情很好 😊")
+
+# 數據小天地
+st.subheader("📊 數據小天地 — 看圖說故事")
+df = pd.DataFrame({"A": [1, 2, 3], "B": [3, 2, 1]})
+st.write("簡單示範：")
+st.dataframe(df)
+
+# 小遊戲角落
+st.subheader("🎮 小遊戲角落 — 玩一下放鬆一下")
+st.write("這裡會放入猜數字、單字挑戰……快來挑戰吧！")
+
+# 單字挑戰介紹
+st.subheader("🔤 單字挑戰 — 詞彙大考驗")
+st.write("三種難度，答錯即結束；答對就繼續！試試看能拿幾分吧。")
+
+# 側欄
+st.sidebar.title("🧭 快速選單")
+st.sidebar.write("點選或捲動找到你想玩的遊戲，祝遊戲愉快！")
+
+# === 單字四選一問答（Multiple-choice Word Quiz） ===
+st.subheader("🔤 四選一單字挑戰 — 答錯即結束，看看你能拿多少分！")
+# 檔案以儲存最高分
+HIGHSCORE_FILE = os.path.join("data", "word_quiz_highscore.json")
 
 
-def is_prime(n: int) -> bool:
-    """回傳 True 表示 n 是質數；False 表示不是。
-
-    要求：
-    - 輸入必須為正整數（>0）。
-    - 若輸入不是正整數，則會拋出 ValueError。
-    """
-    # 嚴格型別檢查，排除 bool
-    if type(n) is not int or n <= 0:
-        raise ValueError("輸入必須為正整數")
-    if n == 1:
-        return False
-    if n == 2:
-        return True
-    if n % 2 == 0:
-        return False
-    limit = int(math.isqrt(n))
-    for i in range(3, limit + 1, 2):
-        if n % i == 0:
-            return False
-    return True
+def load_highscore() -> int:
+    try:
+        with open(HIGHSCORE_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return int(data.get("highscore", 0))
+    except Exception:
+        return 0
 
 
-# 1. 設定網頁標題
-st.title("Hello! 👋 Streamlit 小工具與遊戲")
+def save_highscore(score: int):
+    os.makedirs(os.path.dirname(HIGHSCORE_FILE), exist_ok=True)
+    with open(HIGHSCORE_FILE, "w", encoding="utf-8") as f:
+        json.dump({"highscore": int(score)}, f)
 
-# 2. 顯示基本文字
-st.write("這是梁育維的第一個 Streamlit 網頁應用程式。")
 
-# 3. 增加一些互動元件 (按鈕)
-if st.button('點擊我打招呼'):
-    st.success('你好！歡迎來到 Streamlit 的世界！')
+# 讀取外部字庫（若無則使用內建）
+def load_word_bank():
+    default = []
+    try:
+        with open(os.path.join("data", "word_bank.json"), "r", encoding="utf-8") as f:
+            default = json.load(f)
+    except Exception:
+        # 建立簡單備援
+        default = [
+            {"word": w, "definition": w, "difficulty": "簡單"} for w in ["apple", "book", "chair", "dog", "cat"]
+        ]
+    pools = {"簡單": [], "中等": [], "困難": []}
+    for entry in default:
+        diff = entry.get("difficulty", "簡單")
+        if diff not in pools:
+            diff = "簡單"
+        pools[diff].append(entry)
+    return pools
 
-# 4. 簡單的輸入框互動
-name = st.text_input("請輸入你的名字：")
-if name:
-    st.write(f"我是梁育維 很高興認識你，{name}！")
+POOLS = load_word_bank()
 
-# === 遊戲：剪刀石頭布 (Rock-Paper-Scissors) ===
-st.subheader("✂️🪨📄 剪刀石頭布（Rock-Paper-Scissors）")
-# 初始化統計
-if 'rps_stats' not in st.session_state:
-    st.session_state.rps_stats = {"wins": 0, "losses": 0, "ties": 0, "rounds": 0, "history": []}
+POINTS = {"簡單": 1, "中等": 2, "困難": 3}
 
-rps_choice = st.radio("選擇你的出拳：", ("剪刀", "石頭", "布"))
-col1, col2 = st.columns([1, 2])
-with col1:
-    if st.button("出拳！"):
-        comp = random.choice(["剪刀", "石頭", "布"])
-        player = rps_choice
-        if player == comp:
-            result = "平手"
-            st.session_state.rps_stats["ties"] += 1
+# 初始化最高分
+if "word_quiz_highscore" not in st.session_state:
+    st.session_state.word_quiz_highscore = load_highscore()
+
+# 初始化遊戲狀態
+if "word_quiz_game" not in st.session_state:
+    st.session_state.word_quiz_game = {
+        "active": False,
+        "difficulty": "簡單",
+        "score": 0,
+        "used": set(),  # 已使用過的題目(word)
+        "current": None,  # dict: {definition, options, answer, start_time}
+        "history": [],
+        "time_limit": 0,  # 秒, 0 表示無限時間
+    }
+
+# 側欄顯示記分板與最高分
+st.sidebar.header("📝 單字挑戰 記分板")
+st.sidebar.write(f"目前分數：{st.session_state.word_quiz_game['score']} 分")
+st.sidebar.write(f"目前最高紀錄：{st.session_state.word_quiz_highscore} 分")
+
+# 計時器設定（側欄）
+st.sidebar.subheader("⏱ 時間設定")
+st.sidebar.write("將在每題開始時啟動計時；若超過時間則視為答錯。輸入 0 表示不計時。")
+st.session_state.word_quiz_game['time_limit'] = st.sidebar.number_input("每題限定秒數：", min_value=0, max_value=300, value=int(st.session_state.word_quiz_game.get('time_limit', 0)), step=5)
+if st.sidebar.button("重置最高紀錄"):
+    save_highscore(0)
+    st.session_state.word_quiz_highscore = 0
+    st.sidebar.success("最高紀錄已重置。")
+
+# 選擇難度
+diff = st.selectbox("選擇難度：", ("簡單", "中等", "困難"), index=(0 if st.session_state.word_quiz_game['difficulty'] == '簡單' else (1 if st.session_state.word_quiz_game['difficulty'] == '中等' else 2)))
+if diff != st.session_state.word_quiz_game['difficulty']:
+    st.session_state.word_quiz_game['difficulty'] = diff
+    st.info("已更改難度，請按『開始新遊戲』以應用新難度。")
+
+# 使用分頁整理 UI
+tab1, tab2 = st.tabs(["🔤 單字挑戰", "🎮 其他遊戲（Placeholder）"])
+with tab1:
+    # 開始新遊戲 / 重新開始
+    if st.button("開始新遊戲"):
+        st.session_state.word_quiz_game.update({
+            "active": True,
+            "score": 0,
+            "used": set(),
+            "current": None,
+            "history": [],
+            "difficulty": diff,
+        })
+        st.success("遊戲已開始，祝你幸運！")
+
+    # 結束並儲存分數
+    if st.button("結束並儲存分數"):
+        final = st.session_state.word_quiz_game['score']
+        if final > st.session_state.word_quiz_highscore:
+            save_highscore(final)
+            st.session_state.word_quiz_highscore = final
+            st.success(f"已儲存並更新最高分：{final} 分！")
+            st.balloons()
         else:
-            # 何者勝何者（key 贏 value）
-            wins_map = {"剪刀": "布", "石頭": "剪刀", "布": "石頭"}
-            if wins_map[player] == comp:
-                result = "你贏了"
-                st.session_state.rps_stats["wins"] += 1
+            st.info(f"遊戲結束，你的分數：{final} 分 （未超越最高紀錄 {st.session_state.word_quiz_highscore} 分）")
+        st.session_state.word_quiz_game['active'] = False
+
+    # 產生題目函式：回傳 (definition, options, answer)
+    def _make_question_from_pool(pool_entries):
+        choices = [e for e in pool_entries if e['word'] not in st.session_state.word_quiz_game['used']]
+        if not choices:
+            return None, [], None
+        entry = random.choice(choices)
+        word = entry['word']
+        # 選其他三個錯誤選項
+        others = [e['word'] for e in pool_entries if e['word'] != word]
+        # 若其他選項不足，補入其他難度詞庫
+        if len(others) < 3:
+            all_words = [e['word'] for k in POOLS for e in POOLS[k] if e['word'] != word]
+            others = list(set(others + all_words))
+        wrongs = random.sample(others, k=3) if len(others) >= 3 else random.sample(others, k=len(others))
+        options = wrongs + [word]
+        random.shuffle(options)
+        return entry.get('definition', ''), options, word
+
+    # 主遊戲邏輯
+    if st.session_state.word_quiz_game['active']:
+        difficulty = st.session_state.word_quiz_game.get('difficulty', '簡單')
+        pool_entries = POOLS.get(difficulty, [])
+
+        if not st.session_state.word_quiz_game['current']:
+            definition, options, answer = _make_question_from_pool(pool_entries)
+            if definition is None:
+                st.success("恭喜！已回答完此難度的所有題目。遊戲結束。")
+                st.session_state.word_quiz_game['active'] = False
             else:
-                result = "你輸了"
-                st.session_state.rps_stats["losses"] += 1
-        st.session_state.rps_stats["rounds"] += 1
-        st.session_state.rps_stats["history"].append({"player": player, "comp": comp, "result": result})
-        st.write(f"你：{player}；電腦：{comp} → **{result}**")
+                st.session_state.word_quiz_game['current'] = {
+                    'definition': definition,
+                    'options': options,
+                    'answer': answer,
+                    'start_time': time.time()
+                }
 
-with col2:
-    st.write(f"勝：{st.session_state.rps_stats['wins']}，敗：{st.session_state.rps_stats['losses']}，平：{st.session_state.rps_stats['ties']}，回合：{st.session_state.rps_stats['rounds']}")
-    if st.session_state.rps_stats["history"]:
-        st.write("最近回合：")
-        for h in st.session_state.rps_stats["history"][-5:]:
-            st.write(f"你：{h['player']}，電腦：{h['comp']} → {h['result']}")
-    if st.button("重設戰績"):
-        st.session_state.rps_stats = {"wins": 0, "losses": 0, "ties": 0, "rounds": 0, "history": []}
-        st.success("戰績已重設。")
+        if st.session_state.word_quiz_game['current']:
+            cur = st.session_state.word_quiz_game['current']
+            st.write(f"題目（定義）： **{cur['definition']}**")
 
+            # 顯示剩餘時間（若有設定）
+            tlimit = int(st.session_state.word_quiz_game.get('time_limit', 0))
+            if tlimit > 0:
+                elapsed = int(time.time() - cur.get('start_time', time.time()))
+                remaining = max(0, tlimit - elapsed)
+                st.write(f"剩餘時間： {remaining} 秒")
 
-# === 遊戲：猜質數挑戰 (Prime Quiz) ===
-st.subheader("🧠 猜質數挑戰（Is it prime?）")
-# 初始化狀態
-if 'prime' not in st.session_state:
-    st.session_state.prime = {"score": 0, "total": 0, "current": random.randint(2, 100), "history": [], "attempted": False}
+            choice = st.radio("請選擇正確的英文字：", cur['options'], key='word_quiz_choice')
+            if st.button("提交答案 (提交) "):
+                # 時間檢查
+                if tlimit > 0 and (time.time() - cur.get('start_time', time.time())) > tlimit:
+                    st.error("時間到！答錯了。遊戲結束。")
+                    final = st.session_state.word_quiz_game['score']
+                    if final > st.session_state.word_quiz_highscore:
+                        save_highscore(final)
+                        st.session_state.word_quiz_highscore = final
+                        st.balloons()
+                        st.success(f"新的最高紀錄：{final} 分！恭喜！")
+                    else:
+                        st.info(f"目前最高紀錄仍為：{st.session_state.word_quiz_highscore} 分。")
+                    st.session_state.word_quiz_game['active'] = False
+                    st.session_state.word_quiz_game['current'] = None
+                else:
+                    if choice == cur['answer']:
+                        pts = POINTS.get(difficulty, 1)
+                        st.session_state.word_quiz_game['score'] += pts
+                        st.session_state.word_quiz_game['history'].append({'word': cur['answer'], 'points': pts})
+                        st.session_state.word_quiz_game['used'].add(cur['answer'])
+                        st.success(f"答對！獲得 {pts} 分，目前分數：{st.session_state.word_quiz_game['score']} 分。下一題！")
+                        # 清除 current 以產生新題
+                        st.session_state.word_quiz_game['current'] = None
+                        st.session_state['word_quiz_choice'] = None
+                    else:
+                        final = st.session_state.word_quiz_game['score']
+                        st.error(f"答錯了！正確答案是：{cur['answer']}。遊戲結束，你的最終分數：{final} 分。")
+                        # 更新最高分
+                        if final > st.session_state.word_quiz_highscore:
+                            save_highscore(final)
+                            st.session_state.word_quiz_highscore = final
+                            st.balloons()
+                            st.success(f"新的最高紀錄：{final} 分！恭喜！")
+                        else:
+                            st.info(f"目前最高紀錄仍為：{st.session_state.word_quiz_highscore} 分。")
+                        st.session_state.word_quiz_game['active'] = False
+                        st.session_state.word_quiz_game['current'] = None
 
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("下一題"):
-        st.session_state.prime["current"] = random.randint(2, 200)
-        st.session_state.prime["attempted"] = False
+    with tab2:
+        st.write("其他遊戲放在這裡（可擴充）")
 
-number = st.session_state.prime["current"]
-st.write(f"請判斷： **{number}** 是不是質數？")
+    # 側欄顯示歷史與分數
+    st.sidebar.write("---")
+    st.sidebar.write(f"遊戲狀態：{'進行中' if st.session_state.word_quiz_game['active'] else '未進行'}")
+    st.sidebar.write(f"目前分數：{st.session_state.word_quiz_game['score']} 分")
+    if st.session_state.word_quiz_game['history']:
+        st.sidebar.write("最近答對：")
+        for h in st.session_state.word_quiz_game['history'][-10:]:
+            st.sidebar.write(f"{h['word']} (+{h['points']} 分)")
 
-# 答案按鈕
-if st.button("是 (Prime)"):
-    if not st.session_state.prime.get("attempted", False):
-        correct = is_prime(number)
-        st.session_state.prime["total"] += 1
-        if correct:
-            st.session_state.prime["score"] += 1
-            st.success("答對了！這是質數。")
-        else:
-            st.error(f"答錯了，{number} 不是質數。")
-        st.session_state.prime["history"].append({"num": number, "your": "是", "correct": correct})
-        st.session_state.prime["attempted"] = True
+# 載入 time 模組（用於計時）
+import time
 
-if st.button("否 (Not Prime)"):
-    if not st.session_state.prime.get("attempted", False):
-        correct = not is_prime(number)
-        st.session_state.prime["total"] += 1
-        if correct:
-            st.session_state.prime["score"] += 1
-            st.success("答對了！這個數不是質數。")
-        else:
-            st.error(f"答錯了，{number} 其實是質數。")
-        st.session_state.prime["history"].append({"num": number, "your": "否", "correct": correct})
-        st.session_state.prime["attempted"] = True
-
-# 顯示分數與歷史
-st.write(f"得分：{st.session_state.prime['score']} / {st.session_state.prime['total']}")
-if st.session_state.prime["history"]:
-    st.write("最近題目：")
-    for h in st.session_state.prime["history"][-6:]:
-        st.write(f"{h['num']} → 你：{h['your']}，正確：{h['correct']}")
-
-if st.button("重置質數挑戰統計"):
-    st.session_state.prime = {"score": 0, "total": 0, "current": random.randint(2, 100), "history": [], "attempted": False}
-    st.success("質數挑戰已重置。")
